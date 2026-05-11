@@ -1,0 +1,17 @@
+[Unit]
+Description=Input role mapping daemon
+After=local-fs.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/inputd --config /etc/inputd/config.yaml --web-addr 0.0.0.0:17888
+WatchdogSec=90s
+Restart=always
+RestartSec=2
+RuntimeDirectory=inputd
+RuntimeDirectoryMode=0755
+SupplementaryGroups=ops
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

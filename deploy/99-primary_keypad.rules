@@ -1,0 +1,4 @@
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", ATTRS{name}=="*XFFP*", \
+  SYMLINK+="input/primary_keypad", GROUP="ops", MODE="0660"
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", ATTRS{name}=="*XFKEY*", \
+  SYMLINK+="input/primary_keypad", GROUP="ops", MODE="0660"

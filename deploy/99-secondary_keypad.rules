@@ -1,0 +1,2 @@
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", ATTRS{name}!="*XFFP*", ATTRS{name}!="*XFKEY*", \
+  SYMLINK+="input/secondary_keypad", GROUP="ops", MODE="0660"

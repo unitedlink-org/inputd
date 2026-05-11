@@ -1,0 +1,16 @@
+version: 1
+
+transport:
+  event_socket: /run/inputd/input.sock
+  control_socket: /run/inputd/control.sock
+
+roles:
+  primary_input:
+    stable_path: /dev/input/primary_keypad
+    device_id: primary_keypad
+    grab: false
+  secondary_input:
+    stable_path: /dev/input/secondary_keypad
+    device_id: secondary_keypad
+    grab: false
+    auto_discover: true
