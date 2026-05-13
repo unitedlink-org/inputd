@@ -119,7 +119,7 @@ curl -s http://127.0.0.1:17888/v1/roles | python3 -m json.tool
 
 ```
 http://127.0.0.1:17888         # 本機
-http://<NUC-IP>:17888          # 區域網路 / Tailscale / RustDesk 遠端
+http://<NUC-IP>:17888          # 區域網路 / RustDesk 遠端
 ```
 
 ---
@@ -680,50 +680,3 @@ inputd --config /etc/inputd/config.yaml --web-addr 127.0.0.1:17888 --log-level i
 | `--config` | `/etc/inputd/config.yaml` | 設定檔路徑 |
 | `--web-addr` | `127.0.0.1:17888` | Web UI 監聽位址，空字串停用 |
 | `--log-level` | `info` | 日誌層級：`debug`、`info`、`warn`、`error` |
-
-### 專案結構
-
-```
-inputd/
-├── cmd/inputd/main.go          # 程式入口
-├── internal/
-│   ├── config/config.go        # YAML 設定載入與儲存
-│   ├── evdev/
-│   │   ├── evdev.go            # Linux evdev raw 讀取（無 CGo）
-│   │   └── keycodes.go         # keycode 名稱對照表
-│   └── daemon/
-│       ├── daemon.go           # 核心編排，config diff 與 reload
-│       ├── reader.go           # 每個 role 的 evdev 讀取 goroutine
-│       ├── udev.go             # NETLINK_KOBJECT_UEVENT 監聽與熱插拔自動發現
-│       ├── broadcast.go        # event socket 與事件廣播
-│       ├── learn.go            # learn mode 實作
-│       ├── api.go              # HTTP control API 路由
-│       ├── webui.go            # Web UI TCP server
-│       ├── ui.html             # 管理介面靜態頁面（embed 進 binary）
-│       └── types.go            # WireEvent、DeviceInfo 型別
-├── go.mod
-├── go.sum
-├── README.md                   # 系統規格書
-└── DEPLOYMENT.md               # 本文件
-```
-
-### 關鍵設計說明
-
-**角色唯一性**：`applyConfig` 負責 diff 舊新 config，自動 stop/start 受影響的 reader goroutine。`cloneConfig` 確保修改操作不污染現有 `d.cfgVal`，使 diff 結果正確。
-
-**udev 自動發現**：daemon 啟動後監聽 `NETLINK_KOBJECT_UEVENT`。收到 `input/eventX` add 事件時，等待 200ms（讓 udev symlink 規則先行生效），再做三層過濾：
-1. `HasKeyboardKeys()` — ioctl `EVIOCGBIT(EV_KEY, 4)` 確認裝置有 KEY_A（keycode 30），排除滑鼠、電源鍵、媒體裝置等具有 EV_KEY 但非真正鍵盤的裝置
-2. symlink 比對 — 確認 `/dev/input/eventX` 不是任何靜態 role 的 stable_path symlink 目標
-3. phys 前綴比對 — 讀取 `/sys/class/input/eventX/device/phys`，排除與靜態 role 同一實體 USB 裝置的其他 HID 節點（如同一鍵盤的 Consumer Control、System Control sub-device）
-
-啟動時亦掃描 `/dev/input/event*` 補上已連線的裝置（含 RustDesk 已在線的情況）。remove 事件觸發時停止對應 reader。
-
-**primary 自動綁定**：`primary_input` 不使用 auto_discover，而是依賴 udev 規則對 `ATTRS{name}=="*XFFP*"` / `*XFKEY*` 的名稱匹配自動建立 `/dev/input/primary_keypad` symlink。reader 每 2 秒重試，插上即恢復，換 USB port 不影響。
-
-**斷線重連**：每個 `roleReader` goroutine 在 `Read()` 返回錯誤時，等 2 秒後重試開啟 stable path。
-
-**優雅停機**：`Stop()` 先關閉所有 reader 的裝置 fd（含 auto-discover reader），解除 blocking `Read()` 後才 cancel context，避免服務停止時需等到下一個按鍵才能退出。
-
-**goroutine 生命週期**：每個 reader 有獨立的 cancel context；停止時同時 close device file 解除 blocking `Read()`。
-
-**事件廣播**：broadcaster 對每個 client 維護獨立 send channel（buffer 128），client 過慢時直接斷線，不阻塞其他 client。
